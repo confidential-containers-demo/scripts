@@ -1,0 +1,28 @@
+syntax = "proto3";
+
+message BundleRequest {
+	bytes PlatformPublicKey = 1;
+}
+
+message BundleResponse {
+	bytes GuestOwnerPublicKey = 1;
+	bytes LaunchBlob = 2;
+	int32 Policy = 3;
+	int32 ConnectionId = 4;
+
+}
+
+service Setup {
+	rpc GetLaunchBundle (BundleRequest) returns (BundleResponse);
+	rpc GetLaunchSecret (SecretRequest) returns (SecretResponse);
+}
+
+message SecretRequest {
+	bytes LaunchMeasurement = 1;
+	int32 ConnectionId = 2;
+}
+
+message SecretResponse {
+	bytes LaunchSecret = 1;
+}
+
