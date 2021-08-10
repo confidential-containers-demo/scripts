@@ -2,7 +2,8 @@ syntax = "proto3";
 
 message BundleRequest {
 	bytes PlatformPublicKey = 1;
-	int32 Policy = 2;
+	bytes CertificateChain = 2;
+	int32 Policy = 3;
 }
 
 message BundleResponse {

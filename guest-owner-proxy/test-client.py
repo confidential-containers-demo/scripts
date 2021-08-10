@@ -13,7 +13,9 @@ def GetBundle():
     with open("pdh.cert", "rb") as f:
         pdh_bytes = f.read()
 
-    request = BundleRequest(PlatformPublicKey = pdh_bytes, Policy = 0)
+    request = BundleRequest(PlatformPublicKey = pdh_bytes, \
+            CertificateChain = b"CERT CHAIN GOES HERE", \
+            Policy = 0)
     response = client.GetLaunchBundle(request)
     print(response)
 
