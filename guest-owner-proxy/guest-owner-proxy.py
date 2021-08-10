@@ -17,6 +17,7 @@ import time
 import hmac
 import base64
 import hashlib
+import logging
 
 keysets = {}
 sevtool_path = "/home/tobin/sev-tool/src/sevtool"
@@ -56,6 +57,12 @@ def cli_parsing():
                        default = "keys.json", \
                        help = "Path to keyfile.")
 
+    _parser.add_option("-l", "--logfile", \
+                       dest = "logfile_path", \
+                       default = "gop.log", \
+                       help = "Path to log file.")
+
+
     _parser.set_defaults()
     (_options, _args) = _parser.parse_args()
 
@@ -77,6 +84,11 @@ def main(options):
     except Exception as e:
         print("Failed to load keyfile: {}".format(e.msg))
 
+    logging.basicConfig(filename=options.logfile_path, \
+            format='%(asctime)s :: %(message)s', \
+            level=logging.INFO)
+
+    logging.info("Guest Owner Proxy Started")
 
     #makedirs(certs_path, exist_ok = True)
 
@@ -94,7 +106,7 @@ class SetupService(pre_attestation_pb2_grpc.SetupServicer):
         self.connection_id = 1
 
     def GetLaunchBundle(self, request, context):
-        print("Servicing Launch Bundle Request")
+        logging.info("Launch Bundle Request: {}".format(request))
         self.connection_id += 1
 
         # make dir for this conection
@@ -119,14 +131,17 @@ class SetupService(pre_attestation_pb2_grpc.SetupServicer):
         with open(path.join(connection_certs_path, "godh.cert"), "rb") as f:
             godh = f.read()
 
-        return BundleResponse(GuestOwnerPublicKey = godh, \
+        response = BundleResponse(GuestOwnerPublicKey = godh, \
                 LaunchBlob = launch_blob, \
                 ConnectionId = connection_id)
+
+        logging.info("Launch Bundle Response: {}".format(response))
+        return response
 
 
     # TODO: make into smaller functions
     def GetLaunchSecret(self, request, context) :
-        print("Serving Launch Secret Request")
+        logging.info("Launch Secret Request: {}".format(request))
 
         # check each of the parameters against the keyset
         if not request.KeysetId in keysets:
@@ -140,12 +155,14 @@ class SetupService(pre_attestation_pb2_grpc.SetupServicer):
         if not request.Policy in keyset['allowed-policies']:
             context.set_code(grpc.StatusCode.INVALID_ARGUMENT)
             context.set_details('POLICY INVALID')
+            logging.info("Launch Secret Request Failed: Bad Policy")
             return SecretReponse()
 
         # api
         if not request.ApiMajor >= keyset['min-api-major']:
             context.set_code(grpc.StatusCode.INVALID_ARGUMENT)
             context.set_details('API MAJOR VERSION INVALID')
+            logging.info("Launch Secret Request Failed: Bad API Major Version")
             return SecretReponse()
 
         if request.ApiMajor == keyset['min-api-major'] and \
@@ -153,12 +170,14 @@ class SetupService(pre_attestation_pb2_grpc.SetupServicer):
 
             context.set_code(grpc.StatusCode.INVALID_ARGUMENT)
             context.set_details('API MINOR VERSION INVALID')
+            logging.info("Launch Secret Request Failed: Bad API Minor Version")
             return SecretReponse()
 
         # build
         if not request.BuildId in keyset['allowed-build-ids']:
             context.set_code(grpc.StatusCode.INVALID_ARGUMENT)
             context.set_details('BUILD-ID INVALID')
+            logging.info("Launch Secret Request Failed: Bad Build Id")
             return SecretReponse()
 
 
@@ -198,6 +217,7 @@ class SetupService(pre_attestation_pb2_grpc.SetupServicer):
         if not measurement_valid:
             context.set_code(grpc.StatusCode.INVALID_ARGUMENT)
             context.set_details('MEASUREMENT INVALID')
+            logging.info("Launch Secret Request Failed: Bad Measurement")
             return SecretReponse()
 
         # build the secret blob
@@ -244,8 +264,11 @@ class SetupService(pre_attestation_pb2_grpc.SetupServicer):
         h.update(measure)
         header[20:52]=h.digest()
 
-        return SecretResponse(LaunchSecretHeader = bytes(header), \
+        response = SecretResponse(LaunchSecretHeader = bytes(header), \
                 LaunchSecretData = bytes(encrypted_secret))
+
+        logging.info("Launch Secret Response: {}".format(response))
+        return response
 
 
 if __name__ == "__main__":
