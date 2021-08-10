@@ -11,11 +11,6 @@ message BundleResponse {
 	int32 ConnectionId = 3;
 }
 
-service Setup {
-	rpc GetLaunchBundle (BundleRequest) returns (BundleResponse);
-	rpc GetLaunchSecret (SecretRequest) returns (SecretResponse);
-}
-
 message SecretRequest {
 	bytes LaunchMeasurement = 1;
 	int32 ConnectionId = 2;
@@ -29,4 +24,9 @@ message SecretRequest {
 message SecretResponse {
 	bytes LaunchSecretHeader = 1;
 	bytes LaunchSecretData = 2;
+}
+
+service Setup {
+	rpc GetLaunchBundle (BundleRequest) returns (BundleResponse);
+	rpc GetLaunchSecret (SecretRequest) returns (SecretResponse);
 }

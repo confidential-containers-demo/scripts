@@ -66,7 +66,6 @@ def main(options):
         with open(options.config_path) as f:
             global keysets
             keysets = json.load(f)
-            print(keysets)
     except Exception as e:
         print("Failed to load config: {}".format(e.msg))
 
@@ -96,6 +95,7 @@ class SetupService(pre_attestation_pb2_grpc.SetupServicer):
 
     def GetLaunchBundle(self, request, context):
         print("Servicing Launch Bundle Request")
+        self.connection_id += 1
 
         # make dir for this conection
         connection_certs_path = path.join(certs_path, "connection{}".format(self.connection_id))
@@ -118,8 +118,6 @@ class SetupService(pre_attestation_pb2_grpc.SetupServicer):
         # read in the guest owner public key
         with open(path.join(connection_certs_path, "godh.cert"), "rb") as f:
             godh = f.read()
-
-        self.connection_id += 1
 
         return BundleResponse(GuestOwnerPublicKey = godh, \
                 LaunchBlob = launch_blob, \
@@ -150,7 +148,9 @@ class SetupService(pre_attestation_pb2_grpc.SetupServicer):
             context.set_details('API MAJOR VERSION INVALID')
             return SecretReponse()
 
-        if not request.ApiMinor >= keyset['min-api-minor']:
+        if request.ApiMajor == keyset['min-api-major'] and \
+                not request.ApiMinor >= keyset['min-api-minor']:
+
             context.set_code(grpc.StatusCode.INVALID_ARGUMENT)
             context.set_details('API MINOR VERSION INVALID')
             return SecretReponse()
@@ -214,7 +214,6 @@ class SetupService(pre_attestation_pb2_grpc.SetupServicer):
         l = 16 + 4 + len(secret_entry)
         # SEV-ES requires rounding to 16
         l = (l + 15) & ~15
-        print(l)
         secret = bytearray(l);
         secret[0:16] = UUID('{1e74f542-71dd-4d66-963e-ef4287ff173b}').bytes_le
         secret[16:20] = len(secret).to_bytes(4, byteorder='little')
