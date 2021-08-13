@@ -1,0 +1,24 @@
+{
+	"KEYSET-1":
+		{ 
+		  	"allowed_digests":[
+				"66320db73158a35a255d051758e95ed4",
+				"5c3292446d5f85a91923f11f8f58452bd380c7fbd12887dbe15fe1f485cdbaf2"
+			],
+			"allowed_keys":[
+				"KEY-ID-1",
+				"KEY-ID-2"
+			],
+			"allowed-policies":[
+				0,
+				1
+			],
+			"min-api-major":0,
+			"min-api-minor":0,
+			"allowed-build-ids":[
+				16,
+				15,
+				10
+			]
+		}
+}
