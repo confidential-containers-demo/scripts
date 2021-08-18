@@ -133,7 +133,7 @@ class SetupService(pre_attestation_pb2_grpc.SetupServicer):
 
         response = BundleResponse(GuestOwnerPublicKey = godh, \
                 LaunchBlob = launch_blob, \
-                ConnectionId = connection_id)
+                ConnectionId = self.connection_id)
 
         logging.info("Launch Bundle Response: {}".format(response))
         return response
