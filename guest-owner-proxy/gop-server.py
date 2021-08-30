@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
 
-from optparse import OptionParser
-from concurrent import futures
-from os import path, mkdir, makedirs, urandom
-from uuid import UUID
 from Crypto.Cipher import AES
 from Crypto.Util import Counter
+from concurrent import futures
+from optparse import OptionParser
+from os import path, urandom
+from pathlib import Path
+from uuid import UUID
 
 from pre_attestation_pb2 import BundleResponse, SecretResponse
 import pre_attestation_pb2_grpc
@@ -20,9 +21,11 @@ import hashlib
 import logging
 
 keysets = {}
-sevtool_path = "/home/tobin/sev-tool/src/sevtool"
+sevtool_path = "sevtool"
 certs_path = "/tmp/sev-guest-owner-proxy/certs/"
 connection_id = 0
+log_level_output = logging.INFO
+enable_measurement = True 
 
 def guid_to_le(guid_str):
     return UUID("{" + guid_str + "}").bytes_le
@@ -59,9 +62,18 @@ def cli_parsing():
 
     _parser.add_option("-l", "--logfile", \
                        dest = "logfile_path", \
-                       default = "gop.log", \
+                       default = "gop-server.LOG", \
                        help = "Path to log file.")
 
+    _parser.add_option("-d", "--debug", \
+                       dest = "debug", \
+                       action = "store_true", \
+                       help = "Log output DEBUG level")
+
+    _parser.add_option("-u", "--unsafe", \
+                       dest = "unsafe", \
+                       action = "store_true", \
+                       help = "Unsafe mode: measurement validation skipped")
 
     _parser.set_defaults()
     (_options, _args) = _parser.parse_args()
@@ -69,6 +81,8 @@ def cli_parsing():
     return _options
 
 def main(options):
+    global log_level_output
+    global enable_measurement
     try:
         with open(options.config_path) as f:
             global keysets
@@ -84,16 +98,22 @@ def main(options):
     except Exception as e:
         print("Failed to load keyfile: {}".format(e.msg))
 
+    print("Guest Owner Proxy started on port "+str(options.grpc_port))
+    logging.info("Guest Owner Proxy started on port "+str(options.grpc_port))
+
+    if options.debug: 
+        log_level_output = logging.DEBUG
+        print("Debug enabled")
+    if options.unsafe: 
+        enable_measurement = False 
+        print("Measurement validation disabled")
+
     logging.basicConfig(filename=options.logfile_path, \
             format='%(asctime)s :: %(message)s', \
-            level=logging.INFO)
-
-    logging.info("Guest Owner Proxy Started")
-
-    #makedirs(certs_path, exist_ok = True)
+            level=log_level_output)
 
     # this demo implementation isn't designed for parallelism.
-    server = grpc.server(futures.ThreadPoolExecutor(max_workers=1))
+    server = grpc.server(futures.ThreadPoolExecutor(max_workers=4))
     pre_attestation_pb2_grpc.add_SetupServicer_to_server(SetupService(), server)
 
     server.add_insecure_port("[::]:{}".format(options.grpc_port))
@@ -105,13 +125,15 @@ class SetupService(pre_attestation_pb2_grpc.SetupServicer):
     def __init__(self):
         self.connection_id = 1
 
+    # TODO: error handle failed request
     def GetLaunchBundle(self, request, context):
-        logging.info("Launch Bundle Request: {}".format(request))
+        logging.debug("Launch Bundle Request: {}".format(request))
+        cid = self.connection_id
         self.connection_id += 1
 
         # make dir for this conection
-        connection_certs_path = path.join(certs_path, "connection{}".format(self.connection_id))
-        makedirs(connection_certs_path, exist_ok=True)
+        connection_certs_path = path.join(certs_path, "connection{}".format(cid))
+        Path(connection_certs_path).mkdir(parents=True, exist_ok=True)
 
         # save pdh to file
         with open(path.join(connection_certs_path,"pdh.cert"),"wb") as f:
@@ -123,6 +145,8 @@ class SetupService(pre_attestation_pb2_grpc.SetupServicer):
                 format(sevtool_path, connection_certs_path, request.Policy)
         subprocess.run(cmd.split())
 
+        logging.info("Launch Bundle created for connection{}".format(cid))
+
         # read in the launch blob
         with open(path.join(connection_certs_path, "launch_blob.bin"), "rb") as f:
             launch_blob = f.read()
@@ -133,21 +157,23 @@ class SetupService(pre_attestation_pb2_grpc.SetupServicer):
 
         response = BundleResponse(GuestOwnerPublicKey = godh, \
                 LaunchBlob = launch_blob, \
-                ConnectionId = self.connection_id)
+                ConnectionId = cid)
 
-        logging.info("Launch Bundle Response: {}".format(response))
+        logging.debug("Launch Bundle Response: {}".format(response))
         return response
 
 
     # TODO: make into smaller functions
+    # TODO: clean up connection state after verification 
     def GetLaunchSecret(self, request, context) :
-        logging.info("Launch Secret Request: {}".format(request))
+        logging.debug("Launch Secret Request: {}".format(request))
 
         # check each of the parameters against the keyset
         if not request.KeysetId in keysets:
             context.set_code(grpc.StatusCode.INVALID_ARGUMENT)
             context.set_details('KEYSET INVALID')
-            return SecretReponse()
+            logging.info("Launch Secret Request Failed: Bad Keyset")
+            return SecretResponse()
 
         keyset = keysets[request.KeysetId]
 
@@ -156,14 +182,14 @@ class SetupService(pre_attestation_pb2_grpc.SetupServicer):
             context.set_code(grpc.StatusCode.INVALID_ARGUMENT)
             context.set_details('POLICY INVALID')
             logging.info("Launch Secret Request Failed: Bad Policy")
-            return SecretReponse()
+            return SecretResponse()
 
         # api
         if not request.ApiMajor >= keyset['min-api-major']:
             context.set_code(grpc.StatusCode.INVALID_ARGUMENT)
             context.set_details('API MAJOR VERSION INVALID')
             logging.info("Launch Secret Request Failed: Bad API Major Version")
-            return SecretReponse()
+            return SecretResponse()
 
         if request.ApiMajor == keyset['min-api-major'] and \
                 not request.ApiMinor >= keyset['min-api-minor']:
@@ -171,23 +197,28 @@ class SetupService(pre_attestation_pb2_grpc.SetupServicer):
             context.set_code(grpc.StatusCode.INVALID_ARGUMENT)
             context.set_details('API MINOR VERSION INVALID')
             logging.info("Launch Secret Request Failed: Bad API Minor Version")
-            return SecretReponse()
+            return SecretResponse()
 
         # build
         if not request.BuildId in keyset['allowed-build-ids']:
             context.set_code(grpc.StatusCode.INVALID_ARGUMENT)
             context.set_details('BUILD-ID INVALID')
             logging.info("Launch Secret Request Failed: Bad Build Id")
-            return SecretReponse()
-
+            return SecretResponse()
 
         # if the metadata checks out, check the measurement
         connection_certs_path = path.join(certs_path, \
                 "connection{}".format(request.ConnectionId))
 
-        # read in the tiktek
-        with open(path.join(connection_certs_path,"tmp_tk.bin"), 'rb') as f:
-            tiktek = f.read()
+        # read in the tiktek 
+        try:
+            with open(path.join(connection_certs_path,"tmp_tk.bin"), 'rb') as f:
+                tiktek = f.read()
+        except Exception as e:
+            context.set_code(grpc.StatusCode.INVALID_ARGUMENT)
+            context.set_details('CONNECTION ID INVALID')
+            logging.info("Launch Secret Request Failed: Bad Connection Id")
+            return SecretResponse()
 
         TEK=tiktek[0:16]
         TIK=tiktek[16:32]
@@ -196,40 +227,42 @@ class SetupService(pre_attestation_pb2_grpc.SetupServicer):
         nonce = launch_measure[32:48]
         measure = launch_measure[0:32]
 
-        measurement_valid = False
+        if enable_measurement:
+            measurement_valid = False
+            # construct measurement for each digest
+            for digest in keyset['allowed_digests']:
+                h = hmac.new(TIK, digestmod='sha256')
+                h.update(bytes([0x04]))
+                h.update(request.ApiMajor.to_bytes(1,byteorder='little'))
+                h.update(request.ApiMinor.to_bytes(1,byteorder='little'))
+                h.update(request.BuildId.to_bytes(1,byteorder='little'))
+                h.update(request.Policy.to_bytes(4,byteorder='little'))
+                h.update(bytes.fromhex(digest))
+                h.update(nonce)
+                if measure == h.digest():
+                    measurement_valid = True
+                    break
+            if not measurement_valid:
+                context.set_code(grpc.StatusCode.INVALID_ARGUMENT)
+                context.set_details('MEASUREMENT INVALID')
+                logging.info("Launch Secret Request Failed: Bad Measurement")
+                return SecretResponse()
+            else:
+                logging.info("Launch Secret Request: Measurement Validated")
+        else:
+            logging.warn("Launch Secret Request: Measurement Validation Skipped")
 
-        # construct measurement for each digest
-        for digest in keyset['allowed_digests']:
-            h = hmac.new(TIK, digestmod='sha256')
-            h.update(bytes([0x04]))
-            h.update(request.ApiMajor.to_bytes(1,byteorder='little'))
-            h.update(request.ApiMinor.to_bytes(1,byteorder='little'))
-            h.update(request.BuildId.to_bytes(1,byteorder='little'))
-            h.update(request.Policy.to_bytes(4,byteorder='little'))
-
-            h.update(bytes.fromhex(digest))
-            h.update(nonce)
-
-            if measure == h.digest():
-                measurement_valid = True
-                break
-
-        if not measurement_valid:
-            context.set_code(grpc.StatusCode.INVALID_ARGUMENT)
-            context.set_details('MEASUREMENT INVALID')
-            logging.info("Launch Secret Request Failed: Bad Measurement")
-            return SecretReponse()
-
-        # build the secret blob
+        # confirm the keyset
         keydict = {}
         for keyid in keyset['allowed_keys']:
             if keyid in keys:
                 keydict[keyid] = keys[keyid]
+                logging.info("Launch Secret Request: Key added ")
 
+        # build the secret blob
         keydict_bytes = (json.dumps(keydict) + "\x00").encode()
         guid = "e6f5a162-d67f-4750-a67c-5d065f2a9910"
         secret_entry = construct_secret_entry(guid, keydict_bytes)
-
 
         l = 16 + 4 + len(secret_entry)
         # SEV-ES requires rounding to 16
@@ -267,7 +300,7 @@ class SetupService(pre_attestation_pb2_grpc.SetupServicer):
         response = SecretResponse(LaunchSecretHeader = bytes(header), \
                 LaunchSecretData = bytes(encrypted_secret))
 
-        logging.info("Launch Secret Response: {}".format(response))
+        logging.debug("Launch Secret Response: {}".format(response))
         return response
 
 

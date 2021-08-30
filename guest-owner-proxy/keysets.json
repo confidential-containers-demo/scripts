@@ -16,9 +16,9 @@
 			"min-api-major":0,
 			"min-api-minor":0,
 			"allowed-build-ids":[
-				16,
+				10,
 				15,
-				10
+				16
 			]
 		}
 }
