@@ -147,7 +147,7 @@ class SetupService(pre_attestation_pb2_grpc.SetupServicer):
         if not request.KeysetId in keysets:
             context.set_code(grpc.StatusCode.INVALID_ARGUMENT)
             context.set_details('KEYSET INVALID')
-            return SecretReponse()
+            return SecretResponse()
 
         keyset = keysets[request.KeysetId]
 
@@ -156,14 +156,14 @@ class SetupService(pre_attestation_pb2_grpc.SetupServicer):
             context.set_code(grpc.StatusCode.INVALID_ARGUMENT)
             context.set_details('POLICY INVALID')
             logging.info("Launch Secret Request Failed: Bad Policy")
-            return SecretReponse()
+            return SecretResponse()
 
         # api
         if not request.ApiMajor >= keyset['min-api-major']:
             context.set_code(grpc.StatusCode.INVALID_ARGUMENT)
             context.set_details('API MAJOR VERSION INVALID')
             logging.info("Launch Secret Request Failed: Bad API Major Version")
-            return SecretReponse()
+            return SecretResponse()
 
         if request.ApiMajor == keyset['min-api-major'] and \
                 not request.ApiMinor >= keyset['min-api-minor']:
@@ -171,14 +171,14 @@ class SetupService(pre_attestation_pb2_grpc.SetupServicer):
             context.set_code(grpc.StatusCode.INVALID_ARGUMENT)
             context.set_details('API MINOR VERSION INVALID')
             logging.info("Launch Secret Request Failed: Bad API Minor Version")
-            return SecretReponse()
+            return SecretResponse()
 
         # build
         if not request.BuildId in keyset['allowed-build-ids']:
             context.set_code(grpc.StatusCode.INVALID_ARGUMENT)
             context.set_details('BUILD-ID INVALID')
             logging.info("Launch Secret Request Failed: Bad Build Id")
-            return SecretReponse()
+            return SecretResponse()
 
 
         # if the metadata checks out, check the measurement
@@ -218,7 +218,7 @@ class SetupService(pre_attestation_pb2_grpc.SetupServicer):
             context.set_code(grpc.StatusCode.INVALID_ARGUMENT)
             context.set_details('MEASUREMENT INVALID')
             logging.info("Launch Secret Request Failed: Bad Measurement")
-            return SecretReponse()
+            return SecretResponse()
 
         # build the secret blob
         keydict = {}
