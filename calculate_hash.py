@@ -10,6 +10,7 @@ import os
 import base64
 import hashlib
 from argparse import ArgumentParser
+from uuid import UUID
 
 
 SEV_HASH_TABLE_HEADER_GUID = "9438d606-4f22-4cc9-b479-a793d411fd21"

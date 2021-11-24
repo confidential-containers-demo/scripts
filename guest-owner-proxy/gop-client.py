@@ -26,8 +26,8 @@ default_launch_measure= "gAxZlm0aF2r8vNTEE01fber98yWJC6K5NTRDUb3ik4LCZvtsXlnxm+z
 # SEV Hardware Specs
 # These need to be set to match the underlying SEV architecture 
 hw_api_major=0
-hw_api_minor=23
-hw_build_id=10
+hw_api_minor=22
+hw_build_id=13
 hw_gpa=8000
 
 
