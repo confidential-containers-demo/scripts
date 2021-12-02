@@ -246,11 +246,13 @@ class SetupService(pre_attestation_pb2_grpc.SetupServicer):
                 context.set_code(grpc.StatusCode.INVALID_ARGUMENT)
                 context.set_details('MEASUREMENT INVALID')
                 logging.info("Launch Secret Request Failed: Bad Measurement")
+
                 print("MEASUREMENT FAILED")
                 return SecretResponse()
             else:
                 logging.info("Launch Secret Request: Measurement Validated")
                 print("MEASUREMENT VALID")
+
         else:
             logging.warn("Launch Secret Request: Measurement Validation Skipped")
 
@@ -265,6 +267,7 @@ class SetupService(pre_attestation_pb2_grpc.SetupServicer):
         keydict_bytes = json.dumps(keydict).encode()
         with open("test-dict","wb") as f:
             f.write(keydict_bytes)
+
 
         guid = "e6f5a162-d67f-4750-a67c-5d065f2a9910"
         secret_entry = construct_secret_entry(guid, keydict_bytes)
