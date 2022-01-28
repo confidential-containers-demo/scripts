@@ -19,6 +19,7 @@ import hmac
 import base64
 import hashlib
 import logging
+import os
 
 keysets = {}
 sevtool_path = "csvtool"
@@ -145,18 +146,52 @@ class SetupService(pre_attestation_pb2_grpc.SetupServicer):
 
         # generate launch blob
         # use sevtool for now. might switch in the future
-        cmd = "sudo {} --ofolder {} --generate_launch_blob {}". \
-                format(sevtool_path, connection_certs_path, request.Policy)
+
+        cmd = "sudo {} --set_out_dir {}". \
+                format(sevtool_path, connection_certs_path)
         subprocess.run(cmd.split())
+
+        cmd = "sudo cp /opt/sev/pdh.cert {}". \
+                format(connection_certs_path)
+        subprocess.run(cmd.split())
+
+        cmd = "sudo cp {} {}". \
+                format(cmdline_file, connection_certs_path)
+        subprocess.run(cmd.split())
+
+        cmd = "sudo cp {} {}/initramfs.img". \
+                format(initrd_file, connection_certs_path)
+        subprocess.run(cmd.split())
+
+        cmd = "sudo cp {} {}/bzImage". \
+                format(kernel_file, connection_certs_path)
+        subprocess.run(cmd.split())
+
+        cmd = "sudo {} --generate_policy 0 0 0 0 0 0 0 0". \
+                format(sevtool_path)
+        subprocess.run(cmd.split())
+
+        os.chdir(connection_certs_path)
+
+        cmd = "sudo csvtool --generate_launch_blob {} true". \
+                format(ovmf_path)
+        subprocess.run(cmd.split())
+
+
+        cmd = r"sudo tr -d '\n' < {}/launch_blob.bin > {}/launch_blob.b64".format(connection_certs_path, connection_certs_path)
+        os.system(cmd)
+
+        cmd = r"sudo tr -d '\n' < {}/guest_owner_dh.cert > {}/guest_owner_dh.b64".format(connection_certs_path, connection_certs_path)
+        os.system(cmd)
 
         logging.info("Launch Bundle created for connection{}".format(cid))
 
         # read in the launch blob
-        with open(path.join(connection_certs_path, "launch_blob.bin"), "rb") as f:
+        with open(path.join(connection_certs_path, "launch_blob.b64"), "rb") as f:
             launch_blob = f.read()
 
         # read in the guest owner public key
-        with open(path.join(connection_certs_path, "godh.cert"), "rb") as f:
+        with open(path.join(connection_certs_path, "guest_owner_dh.b64"), "rb") as f:
             godh = f.read()
 
         response = BundleResponse(GuestOwnerPublicKey = godh, \
