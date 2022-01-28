@@ -327,30 +327,39 @@ class SetupService(pre_attestation_pb2_grpc.SetupServicer):
         secret[16:20] = len(secret).to_bytes(4, byteorder='little')
         secret[20:20+len(secret_entry)] = secret_entry
 
-        ##
-        # encrypt the secret table with the TEK in ctr mode using a random IV
-        ##
-        IV=urandom(16)
-        e = AES.new(TEK, AES.MODE_CTR, counter=Counter.new(128,initial_value=int.from_bytes(IV, byteorder='big')));
-        encrypted_secret = e.encrypt(bytes(secret))
+        # save to file secret.txt as csvtool expected
+        print('Save secret to secret.txt')
+        sec_txt = connection_certs_path + "/secret.txt"
+        fh=open(sec_txt, 'wb')
+        fh.write(secret)
+        fh.close()
 
-        FLAGS = 0
 
-        ##
-        # Table 55. LAUNCH_SECRET Packet Header Buffer
-        ##
-        header=bytearray(52);
-        header[0:4]=FLAGS.to_bytes(4,byteorder='little')
-        header[4:20]=IV
-        h = hmac.new(TIK, digestmod='sha256');
-        h.update(bytes([0x01]))
-        # FLAGS || IV
-        h.update(header[0:20])
-        h.update(l.to_bytes(4, byteorder='little'))
-        h.update(l.to_bytes(4, byteorder='little'))
-        h.update(encrypted_secret)
-        h.update(measure)
-        header[20:52]=h.digest()
+        # the csvtool should have a fake owner_measure.bin to do the secret op
+        # so we must do below to copy the file into connection_certs_path
+        print("Copy the owner_measure.bin")
+        cmd_cp_measure = "cp " + "/opt/sev/guest-owner-proxy/owner_measure.bin" + " " + connection_certs_path
+        os.system(cmd_cp_measure)
+
+        os.chdir(connection_certs_path)
+
+        print('Generate secret data used by qemu')
+        cmd = "sudo csvtool --package_secret 0x2"
+        subprocess.run(cmd.split())
+
+        print('Read encrypted secret')
+        sbin_path = connection_certs_path + "/secret.bin"
+        fh=open(sbin_path, 'rb')
+        encrypted_secret=bytearray(fh.read())
+        fh.close()
+
+
+        print('Read secret header')
+        sheader_path = connection_certs_path + "/secret_header.bin"
+        fh=open(sheader_path, 'rb')
+        header=bytearray(fh.read())
+        fh.close()
+
 
         response = SecretResponse(LaunchSecretHeader = bytes(header), \
                 LaunchSecretData = bytes(encrypted_secret))
