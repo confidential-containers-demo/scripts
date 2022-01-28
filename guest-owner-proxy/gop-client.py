@@ -64,13 +64,13 @@ def GetBundle(server, path, pdh, cert, policy):
     channel.close()
     godh_path = path + "/godh.txt"
     launch_blob_path = path + "/launch_blob.txt"
-    godh_b64 = base64.b64encode(response.GuestOwnerPublicKey)
+    godh_b64 = response.GuestOwnerPublicKey
     # TODO: error handle 
     Path(path).mkdir(parents=True, exist_ok=True)
     # output results 
     with open(godh_path, "w") as f:
         f.write(godh_b64.decode())
-    launch_blob_b64 = base64.b64encode(response.LaunchBlob)
+    launch_blob_b64 = response.LaunchBlob
     with open(launch_blob_path, "w") as f:
         f.write(launch_blob_b64.decode())
     # stdout
