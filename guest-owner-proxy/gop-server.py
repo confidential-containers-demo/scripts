@@ -266,21 +266,29 @@ class SetupService(pre_attestation_pb2_grpc.SetupServicer):
         nonce = launch_measure[32:48]
         measure = launch_measure[0:32]
 
+        print("launch_measure: ", launch_measure.hex())
+        print("nonce: ", nonce.hex())
+        print("measure: ", measure.hex())
+
+
         if enable_measurement:
             measurement_valid = False
-            # construct measurement for each digest
-            for digest in keyset['allowed_digests']:
-                h = hmac.new(TIK, digestmod='sha256')
-                h.update(bytes([0x04]))
-                h.update(request.ApiMajor.to_bytes(1,byteorder='little'))
-                h.update(request.ApiMinor.to_bytes(1,byteorder='little'))
-                h.update(request.BuildId.to_bytes(1,byteorder='little'))
-                h.update(request.Policy.to_bytes(4,byteorder='little'))
-                h.update(bytes.fromhex(digest))
-                h.update(nonce)
-                if measure == h.digest():
-                    measurement_valid = True
-                    break
+            # calculate measurement for each digest
+            os.chdir(connection_certs_path)
+
+            cmd = "sudo cp {} {}". \
+                    format(ovmf_path, connection_certs_path)
+            subprocess.run(cmd.split())
+
+            cmd = "sudo {} --calc_measurement OVMF.fd {} true".format(sevtool_path, nonce.hex())
+            subprocess.run(cmd.split())
+            with open("owner_measure.bin", 'rb') as fh:
+                calc_measure = fh.read()
+                print("calc_measure: ", calc_measure.hex())
+
+            if calc_measure == measure:
+                measurement_valid = True
+
             if not measurement_valid:
                 context.set_code(grpc.StatusCode.INVALID_ARGUMENT)
                 context.set_details('MEASUREMENT INVALID')
