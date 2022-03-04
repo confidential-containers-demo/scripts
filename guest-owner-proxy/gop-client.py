@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Basic client for the SEV/-ES Guest Owner Proxy
+# Basic client for the CSV/-ES Guest Owner Proxy
 
 import argparse
 import base64
@@ -10,28 +10,28 @@ from pathlib import Path
 from pre_attestation_pb2_grpc import SetupStub
 from pre_attestation_pb2 import BundleRequest, SecretRequest
 
-# SEV Host Settings
+# CSV Host Settings
 # The host phd and cert_chain must be install ahead of time
-#   e.g., sudo sevtool --ofolder /opt/sev --pdh_cert_export
-default_pdh="/opt/sev/pdh.cert"
-default_cert="/opt/sev/cert_chain.cert"
+#   e.g., sudo csvtool --ofolder /opt/csv --pdh_cert_export
+default_pdh="/opt/csv/pdh.cert"
+default_cert="/opt/csv/cert_chain.cert"
 default_policy = 0
 default_connection_id = 9
 default_keyset_id = "KEYSET-1"
 default_server = "localhost:50051"
 default_path = "/tmp"
-# WARNING: default launch measure should not pass 
+# WARNING: default launch measure should not pass
 default_launch_measure= "gAxZlm0aF2r8vNTEE01fber98yWJC6K5NTRDUb3ik4LCZvtsXlnxm+zySQiGjTPA"
 
-# SEV Hardware Specs
-# These need to be set to match the underlying SEV architecture 
+# CSV Hardware Specs
+# These need to be set to match the underlying CSV architecture
 hw_api_major=0
 hw_api_minor=22
 hw_build_id=13
 hw_gpa=8000
 
 
-# TODO: use sevtool to generate phd & cert_chain at request time
+# TODO: use csvtool to generate phd & cert_chain at request time
 def GetBundle(server, path, pdh, cert, policy):
     try:
         with open(pdh, "rb") as f:
@@ -77,7 +77,7 @@ def GetBundle(server, path, pdh, cert, policy):
     print(godh_path+","+launch_blob_path+","+str(response.ConnectionId))
 
 
-# TODO: use sevtool to pull SEV hw values (API major/minor, build_id) at request time 
+# TODO: use csvtool to pull CSV hw values (API major/minor, build_id) at request time
 def GetSecret(server, path, connection_id, keyset_id, launch_measure_str, policy):
     #prepare request
     secret_header_path = path + "/secret_header.txt"

@@ -22,8 +22,8 @@ import logging
 import os
 
 keysets = {}
-sevtool_path = "csvtool"
-certs_path = "/tmp/sev-guest-owner-proxy/certs/"
+csvtool_path = "csvtool"
+certs_path = "/tmp/csv-guest-owner-proxy/certs/"
 ovmf_path = "/opt/csv/OVMF.fd"
 cmdline_file = "/opt/csv/cmdline"
 kernel_file = "/opt/csv/vmlinuz-5.15.0-rc5+"
@@ -145,13 +145,13 @@ class SetupService(pre_attestation_pb2_grpc.SetupServicer):
             f.write(request.PlatformPublicKey)
 
         # generate launch blob
-        # use sevtool for now. might switch in the future
+        # use csvtool for now. might switch in the future
 
         cmd = "sudo {} --set_out_dir {}". \
-                format(sevtool_path, connection_certs_path)
+                format(csvtool_path, connection_certs_path)
         subprocess.run(cmd.split())
 
-        cmd = "sudo cp /opt/sev/pdh.cert {}". \
+        cmd = "sudo cp /opt/csv/pdh.cert {}". \
                 format(connection_certs_path)
         subprocess.run(cmd.split())
 
@@ -168,7 +168,7 @@ class SetupService(pre_attestation_pb2_grpc.SetupServicer):
         subprocess.run(cmd.split())
 
         cmd = "sudo {} --generate_policy 0 0 0 0 0 0 0 0". \
-                format(sevtool_path)
+                format(csvtool_path)
         subprocess.run(cmd.split())
 
         os.chdir(connection_certs_path)
@@ -280,7 +280,7 @@ class SetupService(pre_attestation_pb2_grpc.SetupServicer):
                     format(ovmf_path, connection_certs_path)
             subprocess.run(cmd.split())
 
-            cmd = "sudo {} --calc_measurement OVMF.fd {} true".format(sevtool_path, nonce.hex())
+            cmd = "sudo {} --calc_measurement OVMF.fd {} true".format(csvtool_path, nonce.hex())
             subprocess.run(cmd.split())
             with open("owner_measure.bin", 'rb') as fh:
                 calc_measure = fh.read()
@@ -320,7 +320,7 @@ class SetupService(pre_attestation_pb2_grpc.SetupServicer):
         secret_entry = construct_secret_entry(guid, keydict_bytes)
 
         l = 16 + 4 + len(secret_entry)
-        # SEV-ES requires rounding to 16
+        # CSV-ES requires rounding to 16
         l = (l + 15) & ~15
         secret = bytearray(l);
         secret[0:16] = UUID('{1e74f542-71dd-4d66-963e-ef4287ff173b}').bytes_le
@@ -338,7 +338,7 @@ class SetupService(pre_attestation_pb2_grpc.SetupServicer):
         # the csvtool should have a fake owner_measure.bin to do the secret op
         # so we must do below to copy the file into connection_certs_path
         print("Copy the owner_measure.bin")
-        cmd_cp_measure = "cp " + "/opt/sev/guest-owner-proxy/owner_measure.bin" + " " + connection_certs_path
+        cmd_cp_measure = "cp " + "/opt/csv/guest-owner-proxy/owner_measure.bin" + " " + connection_certs_path
         os.system(cmd_cp_measure)
 
         os.chdir(connection_certs_path)
