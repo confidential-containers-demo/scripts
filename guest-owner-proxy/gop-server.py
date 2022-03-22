@@ -149,33 +149,33 @@ class SetupService(pre_attestation_pb2_grpc.SetupServicer):
 
         cmd = "sudo {} --set_out_dir {}". \
                 format(csvtool_path, connection_certs_path)
-        subprocess.run(cmd.split())
+        os.system(cmd)
 
         cmd = "sudo cp /opt/csv/pdh.cert {}". \
                 format(connection_certs_path)
-        subprocess.run(cmd.split())
+        os.system(cmd)
 
         cmd = "sudo cp {} {}". \
                 format(cmdline_file, connection_certs_path)
-        subprocess.run(cmd.split())
+        os.system(cmd)
 
         cmd = "sudo cp {} {}/initramfs.img". \
                 format(initrd_file, connection_certs_path)
-        subprocess.run(cmd.split())
+        os.system(cmd)
 
         cmd = "sudo cp {} {}/bzImage". \
                 format(kernel_file, connection_certs_path)
-        subprocess.run(cmd.split())
+        os.system(cmd)
 
         cmd = "sudo {} --generate_policy 0 0 0 0 0 0 0 0". \
                 format(csvtool_path)
-        subprocess.run(cmd.split())
+        os.system(cmd)
 
         os.chdir(connection_certs_path)
 
         cmd = "sudo csvtool --generate_launch_blob {} true". \
                 format(ovmf_path)
-        subprocess.run(cmd.split())
+        os.system(cmd)
 
 
         cmd = r"sudo tr -d '\n' < {}/launch_blob.bin > {}/launch_blob.b64".format(connection_certs_path, connection_certs_path)
@@ -278,10 +278,10 @@ class SetupService(pre_attestation_pb2_grpc.SetupServicer):
 
             cmd = "sudo cp {} {}". \
                     format(ovmf_path, connection_certs_path)
-            subprocess.run(cmd.split())
+            os.system(cmd)
 
             cmd = "sudo {} --calc_measurement OVMF.fd {} true".format(csvtool_path, nonce.hex())
-            subprocess.run(cmd.split())
+            os.system(cmd)
             with open("owner_measure.bin", 'rb') as fh:
                 calc_measure = fh.read()
                 print("calc_measure: ", calc_measure.hex())
@@ -345,7 +345,7 @@ class SetupService(pre_attestation_pb2_grpc.SetupServicer):
 
         print('Generate secret data used by qemu')
         cmd = "sudo csvtool --package_secret 0x2"
-        subprocess.run(cmd.split())
+        os.system(cmd)
 
         print('Read encrypted secret')
         sbin_path = connection_certs_path + "/secret.bin"
