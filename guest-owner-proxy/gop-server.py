@@ -22,15 +22,16 @@ import logging
 import os
 
 keysets = {}
-csvtool_path = "csvtool"
+hag_path = "hag"
 certs_path = "/tmp/csv-guest-owner-proxy/certs/"
 ovmf_path = "/opt/csv/ccv0-guest/OVMF.fd"
 cmdline_file = "/opt/csv/ccv0-guest/cmdline"
 kernel_file = "/opt/csv/ccv0-guest/vmlinuz-5.15.0-rc5+"
 initrd_file = "/opt/csv/ccv0-guest/initrd.pre.img"
 connection_id = 0
+build_id = 1486
 log_level_output = logging.INFO
-enable_measurement = True 
+enable_measurement = True
 
 def guid_to_le(guid_str):
     return UUID("{" + guid_str + "}").bytes_le
@@ -106,11 +107,11 @@ def main(options):
     print("Guest Owner Proxy started on port "+str(options.grpc_port))
     logging.info("Guest Owner Proxy started on port "+str(options.grpc_port))
 
-    if options.debug: 
+    if options.debug:
         log_level_output = logging.DEBUG
         print("Debug enabled")
-    if options.unsafe: 
-        enable_measurement = False 
+    if options.unsafe:
+        enable_measurement = False
         print("Measurement validation disabled")
 
     logging.basicConfig(filename=options.logfile_path, \
@@ -145,10 +146,10 @@ class SetupService(pre_attestation_pb2_grpc.SetupServicer):
             f.write(request.PlatformPublicKey)
 
         # generate launch blob
-        # use csvtool for now. might switch in the future
+        # use hag for now. might switch in the future
 
         cmd = "sudo {} --set_out_dir {}". \
-                format(csvtool_path, connection_certs_path)
+                format(hag_path, connection_certs_path)
         os.system(cmd)
 
         cmd = "sudo cp /opt/csv/pdh.cert {}". \
@@ -168,13 +169,13 @@ class SetupService(pre_attestation_pb2_grpc.SetupServicer):
         os.system(cmd)
 
         cmd = "sudo {} --generate_policy 0 0 0 0 0 0 0 0". \
-                format(csvtool_path)
+                format(hag_path)
         os.system(cmd)
 
         os.chdir(connection_certs_path)
 
-        cmd = "sudo csvtool --generate_launch_blob {} true". \
-                format(ovmf_path)
+        cmd = "sudo hag --generate_launch_blob {} {} true". \
+                format(build_id, ovmf_path)
         os.system(cmd)
 
 
@@ -203,7 +204,7 @@ class SetupService(pre_attestation_pb2_grpc.SetupServicer):
 
 
     # TODO: make into smaller functions
-    # TODO: clean up connection state after verification 
+    # TODO: clean up connection state after verification
     def GetLaunchSecret(self, request, context) :
         logging.debug("Launch Secret Request: {}".format(request))
 
@@ -249,7 +250,7 @@ class SetupService(pre_attestation_pb2_grpc.SetupServicer):
         connection_certs_path = path.join(certs_path, \
                 "connection{}".format(request.ConnectionId))
 
-        # read in the tiktek 
+        # read in the tiktek
         try:
             with open(path.join(connection_certs_path,"tmp_tk.bin"), 'rb') as f:
                 tiktek = f.read()
@@ -280,7 +281,8 @@ class SetupService(pre_attestation_pb2_grpc.SetupServicer):
                     format(ovmf_path, connection_certs_path)
             os.system(cmd)
 
-            cmd = "sudo {} --calc_measurement OVMF.fd {} true".format(csvtool_path, nonce.hex())
+            cmd = "sudo {} --calc_measurement OVMF.fd {} true {} {} {}".format(hag_path, nonce.hex(), request.ApiMinor, request.ApiMajor, request.BuildId)
+            print("clac measure cmd: ", cmd)
             os.system(cmd)
             with open("owner_measure.bin", 'rb') as fh:
                 calc_measure = fh.read()
@@ -327,7 +329,7 @@ class SetupService(pre_attestation_pb2_grpc.SetupServicer):
         secret[16:20] = len(secret).to_bytes(4, byteorder='little')
         secret[20:20+len(secret_entry)] = secret_entry
 
-        # save to file secret.txt as csvtool expected
+        # save to file secret.txt as hag expected
         print('Save secret to secret.txt')
         sec_txt = connection_certs_path + "/secret.txt"
         fh=open(sec_txt, 'wb')
@@ -335,7 +337,7 @@ class SetupService(pre_attestation_pb2_grpc.SetupServicer):
         fh.close()
 
 
-        # the csvtool should have a fake owner_measure.bin to do the secret op
+        # the hag should have a fake owner_measure.bin to do the secret op
         # so we must do below to copy the file into connection_certs_path
         print("Copy the owner_measure.bin")
         cmd_cp_measure = "cp " + "/opt/csv/guest-owner-proxy/owner_measure.bin" + " " + connection_certs_path
@@ -344,7 +346,7 @@ class SetupService(pre_attestation_pb2_grpc.SetupServicer):
         os.chdir(connection_certs_path)
 
         print('Generate secret data used by qemu')
-        cmd = "sudo csvtool --package_secret 0x2"
+        cmd = "sudo hag --package_secret 0x2"
         os.system(cmd)
 
         print('Read encrypted secret')
