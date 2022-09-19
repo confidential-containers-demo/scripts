@@ -29,7 +29,7 @@ cmdline_file = "/opt/csv/ccv0-guest/cmdline"
 kernel_file = "/opt/csv/ccv0-guest/vmlinuz-5.15.0-rc5+"
 initrd_file = "/opt/csv/ccv0-guest/initrd.pre.img"
 connection_id = 0
-build_id = 1486
+build_id = 1644
 log_level_output = logging.INFO
 enable_measurement = True
 
@@ -231,6 +231,7 @@ class SetupService(pre_attestation_pb2_grpc.SetupServicer):
             logging.info("Launch Secret Request Failed: Bad API Major Version")
             return SecretResponse()
 
+
         if request.ApiMajor == keyset['min-api-major'] and \
                 not request.ApiMinor >= keyset['min-api-minor']:
 
@@ -281,7 +282,7 @@ class SetupService(pre_attestation_pb2_grpc.SetupServicer):
                     format(ovmf_path, connection_certs_path)
             os.system(cmd)
 
-            cmd = "sudo {} --calc_measurement OVMF.fd {} true {} {} {}".format(hag_path, nonce.hex(), request.ApiMinor, request.ApiMajor, request.BuildId)
+            cmd = "sudo {} --calc_measurement OVMF.fd {} true {} {} {}".format(hag_path, nonce.hex(), request.ApiMajor, request.ApiMinor, request.BuildId)
             print("clac measure cmd: ", cmd)
             os.system(cmd)
             with open("owner_measure.bin", 'rb') as fh:
@@ -339,14 +340,11 @@ class SetupService(pre_attestation_pb2_grpc.SetupServicer):
 
         # the hag should have a fake owner_measure.bin to do the secret op
         # so we must do below to copy the file into connection_certs_path
-        print("Copy the owner_measure.bin")
-        cmd_cp_measure = "cp " + "/opt/csv/guest-owner-proxy/owner_measure.bin" + " " + connection_certs_path
-        os.system(cmd_cp_measure)
 
         os.chdir(connection_certs_path)
 
         print('Generate secret data used by qemu')
-        cmd = "sudo hag --package_secret 0x2"
+        cmd = "sudo hag --package_secret {} 0x2".format(build_id)
         os.system(cmd)
 
         print('Read encrypted secret')
