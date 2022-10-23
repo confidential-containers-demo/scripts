@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 ##
-# 
+#
 # Python script to calculate firmware digests including
 # injected hashes of initrd, kernel, and kernel params.
 #
@@ -9,6 +9,7 @@ import sys
 import os
 import base64
 import hashlib
+from pysmx.SM3 import SM3
 from argparse import ArgumentParser
 from uuid import UUID
 
@@ -70,21 +71,28 @@ def main(args):
             initrd_hash = h.digest()
 
     if args.cmdline:
-        print("Calculating hash of kernel params ({})".format(args.cmdline))
-        cmdline = args.cmdline.encode() + b'\x00'
-        h = hashlib.sha256(cmdline)
-        cmdline_hash = h.digest()
+        with open(args.cmdline, 'rb') as fh:
+            print("Calculating hash of kernel params ({})".format(args.cmdline))
+
+            cmd_buf = fh.read()
+            cmdline_buffer = bytearray(len(cmd_buf))
+            cmdline_buffer = cmd_buf[0:(len(cmd_buf) -1)]
+            cmdline_buffer = cmdline_buffer + b'\x00'
+
+            h = hashlib.sha256(cmdline_buffer)
+            cmdline_hash = h.digest()
+
 
     if kernel_hash and initrd_hash and cmdline_hash:
         sev_hashes_table = construct_sev_hashes_page(kernel_hash, initrd_hash, cmdline_hash)
 
     with open(args.ovmf, 'rb') as fh:
-        h = hashlib.sha256(fh.read())
-    if sev_hashes_table:
-        h.update(sev_hashes_table)
-    ovmf_hash = h.digest()
-    print("Firmware Digest: {}".format(ovmf_hash.hex()))
-
+        sm3 = SM3()
+        sm3.update(fh.read())
+        sm3.update(sev_hashes_table)
+        final_hash = sm3.digest()
+        final_hash_str = str(base64.b64encode(final_hash), 'utf-8')
+        print("Firmware Digest: ", final_hash_str)
 
 if __name__ == "__main__":
     parser = ArgumentParser(description='Calculate firmware digest')
